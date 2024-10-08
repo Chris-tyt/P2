@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
+#include <vector>
+#include <iostream>
+
 
 #include "vec3.hpp"
 #include "zmorton.hpp"
@@ -13,7 +16,7 @@
 #include "binhash.hpp"
 
 /* Define this to use the bucketing version of the code */
-/* #define USE_BUCKETING */
+#define USE_BUCKETING
 
 /*@T
  * \subsection{Density computations}
@@ -41,6 +44,19 @@ void update_density(particle_t* pi, particle_t* pj, float h2, float C)
     }
 }
 
+inline
+void update_density_single(particle_t* pi, particle_t* pj, float h2, float C)
+{
+    float r2 = vec3_dist2(pi->x, pj->x);
+    float z  = h2-r2;
+    if (z > 0) {
+        float rho_ij = C*z*z*z;
+        pi->rho += rho_ij;
+        // pj->rho += rho_ij;
+    }
+}
+
+
 void compute_density(sim_state_t* s, sim_param_t* params)
 {
     int n = s->n;
@@ -60,6 +76,22 @@ void compute_density(sim_state_t* s, sim_param_t* params)
     // Accumulate density info
 #ifdef USE_BUCKETING
     /* BEGIN TASK */
+    std::cout<<"in com"<<std::endl;
+
+    for (int i = 0; i < n; ++i) {
+        std::cout<<"in for"<< i <<std::endl;
+        particle_t* pi = p+i;
+        pi->rho += ( 315.0/64.0/M_PI ) * s->mass / h3;
+        std::vector<unsigned> buckets;
+        find_neighbor_buckets(hash, p, h, buckets);
+        for(size_t j=0;j<buckets.size();j++){
+            particle_t* p_n = hash[buckets[j]];
+            while (p_n) {
+                update_density_single(pi, p_n, h2, C);
+                p_n=p_n->next;
+            }
+        }
+    }
     /* END TASK */
 #else
     for (int i = 0; i < n; ++i) {
@@ -117,6 +149,34 @@ void update_forces(particle_t* pi, particle_t* pj, float h2,
     }
 }
 
+inline
+void update_forces_single(particle_t* pi, particle_t* pj, float h2,
+                   float rho0, float C0, float Cp, float Cv)
+{
+    float dx[3];
+    vec3_diff(dx, pi->x, pj->x);
+    float r2 = vec3_len2(dx);
+    if (r2 < h2) {
+        const float rhoi = pi->rho;
+        const float rhoj = pj->rho;
+        float q = sqrt(r2/h2);
+        float u = 1-q;
+        float w0 = C0 * u/rhoi/rhoj;
+        float wp = w0 * Cp * (rhoi+rhoj-2*rho0) * u/q;
+        float wv = w0 * Cv;
+        float dv[3];
+        vec3_diff(dv, pi->v, pj->v);
+
+        // Equal and opposite pressure forces
+        vec3_saxpy(pi->a,  wp, dx);
+        // vec3_saxpy(pj->a, -wp, dx);
+        
+        // Equal and opposite viscosity forces
+        vec3_saxpy(pi->a,  wv, dv);
+        // vec3_saxpy(pj->a, -wv, dv);
+    }
+}
+
 void compute_accel(sim_state_t* state, sim_param_t* params)
 {
     // Unpack basic parameters
@@ -151,6 +211,18 @@ void compute_accel(sim_state_t* state, sim_param_t* params)
     // Accumulate forces
 #ifdef USE_BUCKETING
     /* BEGIN TASK */
+    for (int i = 0; i < n; ++i) {
+        particle_t* pi = p+i;
+        std::vector<unsigned> buckets;
+        find_neighbor_buckets(hash, p, h, buckets);
+        for(size_t j=0;j<buckets.size();j++){
+            particle_t* p_n = hash[buckets[j]];
+            while (p_n) {
+                update_forces_single(pi, p_n, h2, rho0, C0, Cp, Cv);
+                p_n=p_n->next;
+            }
+        }
+    }
     /* END TASK */
 #else
     for (int i = 0; i < n; ++i) {
