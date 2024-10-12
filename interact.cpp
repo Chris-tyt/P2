@@ -47,6 +47,7 @@ void update_density(particle_t* pi, particle_t* pj, float h2, float C)
 inline
 void update_density_single(particle_t* pi, particle_t* pj, float h2, float C)
 {
+    if (pi == pj){return;}
     float r2 = vec3_dist2(pi->x, pj->x);
     float z  = h2-r2;
     if (z > 0) {
@@ -76,10 +77,10 @@ void compute_density(sim_state_t* s, sim_param_t* params)
     // Accumulate density info
 #ifdef USE_BUCKETING
     /* BEGIN TASK */
-    std::cout<<"in com"<<std::endl;
+    // std::cout<<"in com"<<std::endl;
 
     for (int i = 0; i < n; ++i) {
-        std::cout<<"in for"<< i <<std::endl;
+        // std::cout<<"in for"<< i <<std::endl;
         particle_t* pi = p+i;
         pi->rho += ( 315.0/64.0/M_PI ) * s->mass / h3;
         std::vector<unsigned> buckets;
@@ -153,6 +154,7 @@ inline
 void update_forces_single(particle_t* pi, particle_t* pj, float h2,
                    float rho0, float C0, float Cp, float Cv)
 {
+    if (pi == pj){return;}
     float dx[3];
     vec3_diff(dx, pi->x, pj->x);
     float r2 = vec3_len2(dx);

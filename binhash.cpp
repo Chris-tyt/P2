@@ -62,7 +62,7 @@ unsigned particle_neighborhood(unsigned *buckets, particle_t *p, float h)
 
 void find_neighbor_buckets(particle_t **hash, particle_t *p, float h, std::vector<unsigned>& neighbors){
     /* BEGIN TASK */
-    std::cout<<"in find"<<std::endl;
+    // std::cout<<"in find"<<std::endl;
 
     int ix = p->x[0] / h;
     int iy = p->x[1] / h;
@@ -88,14 +88,14 @@ void find_neighbor_buckets(particle_t **hash, particle_t *p, float h, std::vecto
             }
         }
     }
-    std::cout<<"out find"<<std::endl;
+    // std::cout<<"out find"<<std::endl;
     /* END TASK */
 }
 
 void hash_particles(sim_state_t *s, float h)
 {
     /* BEGIN TASK */
-    std::cout<<"in hash"<<std::endl;
+    // std::cout<<"in hash"<<std::endl;
     // 初始化哈希表和粒子链表结构
     particle_t *p = s->part;
     particle_t **hash = s->hash;
@@ -114,6 +114,6 @@ void hash_particles(sim_state_t *s, float h)
         p[i].next = hash[hash_index];
         hash[hash_index] = &p[i];
     }
-    std::cout<<"out hash"<<std::endl;
+    // std::cout<<"out hash"<<std::endl;
     /* END TASK */
 }
