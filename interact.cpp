@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
+#include <omp.h>
 #include <vector>
 #include <iostream>
 
@@ -17,6 +18,7 @@
 
 /* Define this to use the bucketing version of the code */
 #define USE_BUCKETING
+// #define USE_2H
 
 /*@T
  * \subsection{Density computations}
@@ -78,13 +80,19 @@ void compute_density(sim_state_t* s, sim_param_t* params)
 #ifdef USE_BUCKETING
     /* BEGIN TASK */
     // std::cout<<"in com"<<std::endl;
-
+    omp_set_num_threads(16);
+    #pragma omp parallel for
     for (int i = 0; i < n; ++i) {
         // std::cout<<"in for"<< i <<std::endl;
         particle_t* pi = p+i;
         pi->rho += ( 315.0/64.0/M_PI ) * s->mass / h3;
         std::vector<unsigned> buckets;
+        buckets.reserve(5000);
+#ifdef USE_2H
         find_neighbor_buckets(hash, p, 2*h, buckets);
+#else
+        find_neighbor_buckets(hash, p, h, buckets);
+#endif
         for(size_t j=0;j<buckets.size();j++){
             particle_t* p_n = hash[buckets[j]];
             while (p_n) {
@@ -196,7 +204,11 @@ void compute_accel(sim_state_t* state, sim_param_t* params)
     int n = state->n;
 
     // Rehash the particles
+#ifdef USE_2H
+    hash_particles(state, 2*h);
+#else
     hash_particles(state, h);
+#endif
 
     // Compute density and color
     compute_density(state, params);
@@ -213,10 +225,17 @@ void compute_accel(sim_state_t* state, sim_param_t* params)
     // Accumulate forces
 #ifdef USE_BUCKETING
     /* BEGIN TASK */
+    omp_set_num_threads(16);
+    #pragma omp parallel for
     for (int i = 0; i < n; ++i) {
         particle_t* pi = p+i;
         std::vector<unsigned> buckets;
+        buckets.reserve(5000);
+#ifdef USE_2H
         find_neighbor_buckets(hash, p, 2*h, buckets);
+#else
+        find_neighbor_buckets(hash, p, h, buckets);
+#endif
         for(size_t j=0;j<buckets.size();j++){
             particle_t* p_n = hash[buckets[j]];
             while (p_n) {
