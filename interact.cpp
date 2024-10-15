@@ -84,7 +84,7 @@ void compute_density(sim_state_t* s, sim_param_t* params)
         particle_t* pi = p+i;
         pi->rho += ( 315.0/64.0/M_PI ) * s->mass / h3;
         std::vector<unsigned> buckets;
-        find_neighbor_buckets(hash, p, h, buckets);
+        find_neighbor_buckets(hash, p, 2*h, buckets);
         for(size_t j=0;j<buckets.size();j++){
             particle_t* p_n = hash[buckets[j]];
             while (p_n) {
@@ -216,7 +216,7 @@ void compute_accel(sim_state_t* state, sim_param_t* params)
     for (int i = 0; i < n; ++i) {
         particle_t* pi = p+i;
         std::vector<unsigned> buckets;
-        find_neighbor_buckets(hash, p, h, buckets);
+        find_neighbor_buckets(hash, p, 2*h, buckets);
         for(size_t j=0;j<buckets.size();j++){
             particle_t* p_n = hash[buckets[j]];
             while (p_n) {

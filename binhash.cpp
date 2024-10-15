@@ -108,7 +108,7 @@ void hash_particles(sim_state_t *s, float h)
     for (int i = 0; i < s->n; ++i)
     {
         // 计算哈希索引
-        unsigned int hash_index = particle_bucket(p+i,h);
+        unsigned int hash_index = particle_bucket(p+i,2*h);
 
         // 将粒子插入到哈希表中对应的链表中
         p[i].next = hash[hash_index];
