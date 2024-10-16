@@ -23,7 +23,7 @@
 
 /*@T
  * \subsection{Density computations}
- * 
+ *
  * The formula for density is
  * \[
  *   \rho_i = \sum_j m_j W_{p6}(r_i-r_j,h)
@@ -35,83 +35,100 @@
  * way that $j$ contributes to $i$).
  *@c*/
 
-inline
-void update_density(particle_t* pi, particle_t* pj, float h2, float C)
+inline void update_density(particle_t *pi, particle_t *pj, float h2, float C)
 {
     float r2 = vec3_dist2(pi->x, pj->x);
-    float z  = h2-r2;
-    if (z > 0) {
-        float rho_ij = C*z*z*z;
+    float z = h2 - r2;
+    if (z > 0)
+    {
+        float rho_ij = C * z * z * z;
         pi->rho += rho_ij;
         pj->rho += rho_ij;
     }
 }
 
-inline
-void update_density_single(particle_t* pi, particle_t* pj, float h2, float C)
+inline void update_density_single(particle_t *pi, particle_t *pj, float h2, float C)
 {
-    if (pi == pj){return;}
+    if (pi == pj)
+    {
+        return;
+    }
     float r2 = vec3_dist2(pi->x, pj->x);
-    float z  = h2-r2;
-    if (z > 0) {
-        float rho_ij = C*z*z*z;
+    float z = h2 - r2;
+    if (z > 0)
+    {
+        float rho_ij = C * z * z * z;
         pi->rho += rho_ij;
         // pj->rho += rho_ij;
     }
 }
 
-
-void compute_density(sim_state_t* s, sim_param_t* params)
+void compute_density(sim_state_t *s, sim_param_t *params)
 {
     int n = s->n;
-    particle_t* p = s->part;
-    particle_t** hash = s->hash;
+    particle_t *p = s->part;
+    particle_t **hash = s->hash;
 
-    float h  = params->h;
-    float h2 = h*h;
-    float h3 = h2*h;
-    float h9 = h3*h3*h3;
-    float C  = ( 315.0/64.0/M_PI ) * s->mass / h9;
+    float h = params->h;
+    float h2 = h * h;
+    float h3 = h2 * h;
+    float h9 = h3 * h3 * h3;
+    float C = (315.0 / 64.0 / M_PI) * s->mass / h9;
 
     // Clear densities
     for (int i = 0; i < n; ++i)
         p[i].rho = 0;
 
-    // Accumulate density info
+        // Accumulate density info
 #ifdef USE_BUCKETING
-    /* BEGIN TASK */
-    // std::cout<<"in com"<<std::endl;
+        /* BEGIN TASK */
+        // std::cout<<"in com"<<std::endl;
 #ifdef USE_OMP
     omp_set_num_threads(16);
-    #pragma omp parallel for
+#pragma omp parallel for
 #endif
-    for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < n; ++i)
+    {
         // std::cout<<"in for"<< i <<std::endl;
-        particle_t* pi = p+i;
-        pi->rho += ( 315.0/64.0/M_PI ) * s->mass / h3;
-        std::vector<unsigned> buckets;
-        buckets.reserve(30);
+        particle_t *pi = p + i;
+        pi->rho += (315.0 / 64.0 / M_PI) * s->mass / h3;
+        // std::vector<unsigned> buckets;
+        // buckets.reserve(30);
+        unsigned *buckets = (unsigned *)calloc(30, sizeof(unsigned));
 #ifdef USE_2H
-        find_neighbor_buckets(hash, pi, 2*h, buckets);
+        // find_neighbor_buckets(pi, 2*h, buckets);
+        unsigned num = particle_neighborhood(buckets, pi, 2 * h);
 #else
-        find_neighbor_buckets(hash, pi, h, buckets);
+        // find_neighbor_buckets(pi, h, buckets);
+        unsigned num = particle_neighborhood(buckets, pi, h);
 #endif
-        // std::cout<<buckets.size()<<"size"<<std::endl;
-        for(size_t j=0;j<buckets.size();j++){
-            particle_t* p_n = hash[buckets[j]];
-            while (p_n) {
+        for (size_t j = 0; j < num; j++)
+        {
+            particle_t *p_n = hash[buckets[j]];
+            while (p_n)
+            {
                 update_density_single(pi, p_n, h2, C);
-                p_n=p_n->next;
+                p_n = p_n->next;
             }
         }
+        // std::cout<<buckets.size()<<"size"<<std::endl;
+        // for(size_t j=0;j<buckets.size();j++){
+        //     particle_t* p_n = hash[buckets[j]];
+        //     while (p_n) {
+        //         update_density_single(pi, p_n, h2, C);
+        //         p_n=p_n->next;
+        //     }
+        // }
     }
     /* END TASK */
 #else
-    for (int i = 0; i < n; ++i) {
-        particle_t* pi = s->part+i;
-        pi->rho += ( 315.0/64.0/M_PI ) * s->mass / h3;
-        for (int j = i+1; j < n; ++j) {
-            particle_t* pj = s->part+j;
+    for (int i = 0; i < n; ++i)
+    {
+        particle_t *pi = s->part + i;
+        pi->rho += (315.0 / 64.0 / M_PI) * s->mass / h3;
+        for (int j = i + 1; j < n; ++j)
+        {
+            particle_t *pj = s->part + j;
             update_density(pi, pj, h2, C);
         }
     }
@@ -124,7 +141,7 @@ void compute_density(sim_state_t* s, sim_param_t* params)
  * 
  * The acceleration is computed by the rule
  * \[
- *   \bfa_i = \frac{1}{\rho_i} \sum_{j \in N_i} 
+ *   \bfa_i = \frac{1}{\rho_i} \sum_{j \in N_i}
  *     \bff_{ij}^{\mathrm{interact}} + \bfg,
  * \]
  * where the pair interaction formula is as previously described.
@@ -134,82 +151,85 @@ void compute_density(sim_state_t* s, sim_param_t* params)
  * but it does a very expensive brute force search for neighbors.
  *@c*/
 
-inline
-void update_forces(particle_t* pi, particle_t* pj, float h2,
-                   float rho0, float C0, float Cp, float Cv)
+inline void update_forces(particle_t *pi, particle_t *pj, float h2,
+                          float rho0, float C0, float Cp, float Cv)
 {
     float dx[3];
     vec3_diff(dx, pi->x, pj->x);
     float r2 = vec3_len2(dx);
-    if (r2 < h2) {
+    if (r2 < h2)
+    {
         const float rhoi = pi->rho;
         const float rhoj = pj->rho;
-        float q = sqrt(r2/h2);
-        float u = 1-q;
-        float w0 = C0 * u/rhoi/rhoj;
-        float wp = w0 * Cp * (rhoi+rhoj-2*rho0) * u/q;
+        float q = sqrt(r2 / h2);
+        float u = 1 - q;
+        float w0 = C0 * u / rhoi / rhoj;
+        float wp = w0 * Cp * (rhoi + rhoj - 2 * rho0) * u / q;
         float wv = w0 * Cv;
         float dv[3];
         vec3_diff(dv, pi->v, pj->v);
 
         // Equal and opposite pressure forces
-        vec3_saxpy(pi->a,  wp, dx);
+        vec3_saxpy(pi->a, wp, dx);
         vec3_saxpy(pj->a, -wp, dx);
-        
+
         // Equal and opposite viscosity forces
-        vec3_saxpy(pi->a,  wv, dv);
+        vec3_saxpy(pi->a, wv, dv);
         vec3_saxpy(pj->a, -wv, dv);
     }
 }
 
-inline
-void update_forces_single(particle_t* pi, particle_t* pj, float h2,
-                   float rho0, float C0, float Cp, float Cv)
+inline void update_forces_single(particle_t *pi, particle_t *pj, float h2,
+                                 float rho0, float C0, float Cp, float Cv)
 {
-    if (pi == pj){return;}
+    if (pi == pj)
+    {
+        return;
+    }
     float dx[3];
     vec3_diff(dx, pi->x, pj->x);
     float r2 = vec3_len2(dx);
-    if (r2 < h2) {
+    if (r2 < h2)
+    {
         const float rhoi = pi->rho;
         const float rhoj = pj->rho;
-        float q = sqrt(r2/h2);
-        float u = 1-q;
-        float w0 = C0 * u/rhoi/rhoj;
-        float wp = w0 * Cp * (rhoi+rhoj-2*rho0) * u/q;
+        float q = sqrt(r2 / h2);
+        float u = 1 - q;
+        float w0 = C0 * u / rhoi / rhoj;
+        float wp = w0 * Cp * (rhoi + rhoj - 2 * rho0) * u / q;
         float wv = w0 * Cv;
         float dv[3];
         vec3_diff(dv, pi->v, pj->v);
 
         // Equal and opposite pressure forces
-        vec3_saxpy(pi->a,  wp, dx);
+        vec3_saxpy(pi->a, wp, dx);
         // vec3_saxpy(pj->a, -wp, dx);
-        
+
         // Equal and opposite viscosity forces
-        vec3_saxpy(pi->a,  wv, dv);
+        vec3_saxpy(pi->a, wv, dv);
         // vec3_saxpy(pj->a, -wv, dv);
     }
 }
 
-void compute_accel(sim_state_t* state, sim_param_t* params)
+void compute_accel(sim_state_t *state, sim_param_t *params)
 {
     // Unpack basic parameters
-    const float h    = params->h;
+    const float h = params->h;
     const float rho0 = params->rho0;
-    const float k    = params->k;
-    const float mu   = params->mu;
-    const float g    = params->g;
+    const float k = params->k;
+    const float mu = params->mu;
+    const float g = params->g;
     const float mass = state->mass;
-    const float h2   = h*h;
+    const float h2 = h * h;
 
     // Unpack system state
-    particle_t* p = state->part;
-    particle_t** hash = state->hash;
+    particle_t *p = state->part;
+    particle_t **hash = state->hash;
     int n = state->n;
 
     // Rehash the particles
 #ifdef USE_2H
-    hash_particles(state, 2*h);
+    hash_particles(state, 2 * h);
 #else
     hash_particles(state, h);
 #endif
@@ -219,11 +239,11 @@ void compute_accel(sim_state_t* state, sim_param_t* params)
 
     // Start with gravity and surface forces
     for (int i = 0; i < n; ++i)
-        vec3_set(p[i].a,  0, -g, 0);
+        vec3_set(p[i].a, 0, -g, 0);
 
     // Constants for interaction term
-    float C0 = 45 * mass / M_PI / ( (h2)*(h2)*h );
-    float Cp = k/2;
+    float C0 = 45 * mass / M_PI / ((h2) * (h2)*h);
+    float Cp = k / 2;
     float Cv = -mu;
 
     // Accumulate forces
@@ -231,32 +251,49 @@ void compute_accel(sim_state_t* state, sim_param_t* params)
     /* BEGIN TASK */
 #ifdef USE_OMP
     omp_set_num_threads(16);
-    #pragma omp parallel for
+#pragma omp parallel for
 #endif
-    for (int i = 0; i < n; ++i) {
-        particle_t* pi = p+i;
-        std::vector<unsigned> buckets;
-        buckets.reserve(30);
+    for (int i = 0; i < n; ++i)
+    {
+        particle_t *pi = p + i;
+        // std::vector<unsigned> buckets;
+        // buckets.reserve(30);
+        unsigned *buckets = (unsigned *)calloc(30, sizeof(unsigned));
 #ifdef USE_2H
-        find_neighbor_buckets(hash, pi, 2*h, buckets);
+        unsigned num = particle_neighborhood(buckets, pi, 2 * h);
+        // find_neighbor_buckets(pi, 2 * h, buckets);
 #else
-        find_neighbor_buckets(hash, pi, h, buckets);
+        unsigned num = particle_neighborhood(buckets, pi, h);
+        // find_neighbor_buckets(pi, h, buckets);
 #endif
-        // std::cout<<buckets.size()<<"size"<<std::endl;
-        for(size_t j=0;j<buckets.size();j++){
-            particle_t* p_n = hash[buckets[j]];
-            while (p_n) {
+        for (size_t j = 0; j < num; j++)
+        {
+            particle_t *p_n = hash[buckets[j]];
+            while (p_n)
+            {
                 update_forces_single(pi, p_n, h2, rho0, C0, Cp, Cv);
-                p_n=p_n->next;
+                p_n = p_n->next;
             }
         }
+        // std::cout<<buckets.size()<<"size"<<std::endl;
+        // for (size_t j = 0; j < buckets.size(); j++)
+        // {
+        //     particle_t *p_n = hash[buckets[j]];
+        //     while (p_n)
+        //     {
+        //         update_forces_single(pi, p_n, h2, rho0, C0, Cp, Cv);
+        //         p_n = p_n->next;
+        //     }
+        // }
     }
     /* END TASK */
 #else
-    for (int i = 0; i < n; ++i) {
-        particle_t* pi = p+i;
-        for (int j = i+1; j < n; ++j) {
-            particle_t* pj = p+j;
+    for (int i = 0; i < n; ++i)
+    {
+        particle_t *pi = p + i;
+        for (int j = i + 1; j < n; ++j)
+        {
+            particle_t *pj = p + j;
             update_forces(pi, pj, h2, rho0, C0, Cp, Cv);
         }
     }

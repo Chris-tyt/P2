@@ -47,7 +47,7 @@
 
 unsigned particle_bucket(particle_t* p, float h);
 unsigned particle_neighborhood(unsigned* buckets, particle_t* p, float h);
-void find_neighbor_buckets(particle_t **hash, particle_t *p, float h,std::vector<unsigned>& neighbors);
+void find_neighbor_buckets(particle_t *p, float h,std::vector<unsigned>& neighbors);
 void hash_particles(sim_state_t* s, float h);
 
 /*@q*/
