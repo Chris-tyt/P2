@@ -7,7 +7,6 @@
 #include <vector>
 #include <iostream>
 
-
 #include "vec3.hpp"
 #include "zmorton.hpp"
 
@@ -76,6 +75,9 @@ void compute_density(sim_state_t *s, sim_param_t *params)
     float C = (315.0 / 64.0 / M_PI) * s->mass / h9;
 
     // Clear densities
+#ifdef USE_OMP
+#pragma omp parallel for schedule(dynamic)
+#endif
     for (int i = 0; i < n; ++i)
         p[i].rho = 0;
 
@@ -84,8 +86,7 @@ void compute_density(sim_state_t *s, sim_param_t *params)
         /* BEGIN TASK */
         // std::cout<<"in com"<<std::endl;
 #ifdef USE_OMP
-    omp_set_num_threads(16);
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
 #endif
     for (int i = 0; i < n; ++i)
     {
@@ -135,10 +136,9 @@ void compute_density(sim_state_t *s, sim_param_t *params)
 #endif
 }
 
-
 /*@T
  * \subsection{Computing forces}
- * 
+ *
  * The acceleration is computed by the rule
  * \[
  *   \bfa_i = \frac{1}{\rho_i} \sum_{j \in N_i}
@@ -238,6 +238,9 @@ void compute_accel(sim_state_t *state, sim_param_t *params)
     compute_density(state, params);
 
     // Start with gravity and surface forces
+#ifdef USE_OMP
+#pragma omp parallel for schedule(dynamic)
+#endif
     for (int i = 0; i < n; ++i)
         vec3_set(p[i].a, 0, -g, 0);
 
@@ -250,8 +253,7 @@ void compute_accel(sim_state_t *state, sim_param_t *params)
 #ifdef USE_BUCKETING
     /* BEGIN TASK */
 #ifdef USE_OMP
-    omp_set_num_threads(16);
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
 #endif
     for (int i = 0; i < n; ++i)
     {
@@ -299,4 +301,3 @@ void compute_accel(sim_state_t *state, sim_param_t *params)
     }
 #endif
 }
-

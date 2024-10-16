@@ -4,6 +4,9 @@
 #include "vec3.hpp"
 #include "state.hpp"
 
+
+#define USE_OMP
+
 static void reflect_bc(sim_state_t* s);
 
 /*@T
@@ -54,6 +57,9 @@ static void reflect_bc(sim_state_t* s);
 void leapfrog_step(sim_state_t* s, double dt)
 {
     int n = s->n;
+#ifdef USE_OMP
+#pragma omp parallel for
+#endif
     for (int i = 0; i < n; ++i) {
         particle_t* p = s->part + i;
         vec3_saxpy(p->vh, dt,  p->a);
@@ -76,6 +82,9 @@ void leapfrog_step(sim_state_t* s, double dt)
 void leapfrog_start(sim_state_t* s, double dt)
 {
     int n = s->n;
+#ifdef USE_OMP
+#pragma omp parallel for
+#endif
     for (int i = 0; i < n; ++i) {
         particle_t* p = s->part + i;
         vec3_copy(p->vh, p->v);
@@ -138,6 +147,9 @@ static void reflect_bc(sim_state_t* s)
     const float ZMAX = 1.0;
 
     int n = s->n;
+#ifdef USE_OMP
+#pragma omp parallel for
+#endif
     for (int i = 0; i < n; ++i) {
         float* vh = s->part[i].vh;
         float* v  = s->part[i].v;

@@ -14,6 +14,8 @@
 #include "interact.hpp"
 #include "leapfrog.hpp"
 
+#define USE_OMP
+
 /*@q
  * ====================================================================
  */
@@ -39,11 +41,11 @@ int box_indicator(float x, float y, float z)
 
 int circ_indicator(float x, float y, float z)
 {
-    float dx = (x-0.5);
-    float dy = (y-0.5);
-    float dz = (z-0.5);
-    float r2 = dx*dx + dy*dy + dz*dz;
-    return (r2 < 0.25*0.25*0.25);
+    float dx = (x - 0.5);
+    float dy = (y - 0.5);
+    float dz = (z - 0.5);
+    float r2 = dx * dx + dy * dy + dz * dz;
+    return (r2 < 0.25 * 0.25 * 0.25);
 }
 
 /*@T
@@ -54,26 +56,36 @@ int circ_indicator(float x, float y, float z)
  * with cell sizes of $h/1.3$.  This is close enough to allow the
  * particles to overlap somewhat, but not too much.
  *@c*/
-sim_state_t* place_particles(sim_param_t* param, 
+sim_state_t *place_particles(sim_param_t *param,
                              domain_fun_t indicatef)
 {
-    float h  = param->h;
-    float hh = h/1.3;
+    float h = param->h;
+    float hh = h / 1.3;
 
     // Count mesh points that fall in indicated region.
     int count = 0;
+#ifdef USE_OMP
+#pragma omp parallel for collapse(3) reduction(+ : count)
+#endif
     for (float x = 0; x < 1; x += hh)
         for (float y = 0; y < 1; y += hh)
-        	for (float z = 0; z < 1; z += hh)
-        		count += indicatef(x,y,z);
+            for (float z = 0; z < 1; z += hh)
+                count += indicatef(x, y, z);
 
     // Populate the particle data structure
-    sim_state_t* s = alloc_state(count);
+    sim_state_t *s = alloc_state(count);
     int p = 0;
-    for (float x = 0; x < 1; x += hh) {
-        for (float y = 0; y < 1; y += hh) {
-            for (float z = 0; z < 1; z += hh) {
-                if (indicatef(x,y,z)) {
+#ifdef USE_OMP
+#pragma omp parallel for collapse(3)
+#endif
+    for (float x = 0; x < 1; x += hh)
+    {
+        for (float y = 0; y < 1; y += hh)
+        {
+            for (float z = 0; z < 1; z += hh)
+            {
+                if (indicatef(x, y, z))
+                {
                     vec3_set(s->part[p].x, x, y, z);
                     vec3_set(s->part[p].v, 0, 0, 0);
                     ++p;
@@ -81,7 +93,7 @@ sim_state_t* place_particles(sim_param_t* param,
             }
         }
     }
-    return s;    
+    return s;
 }
 
 /*@T
@@ -96,26 +108,27 @@ sim_state_t* place_particles(sim_param_t* param,
  * average mass density assuming each particle has mass one, then use
  * that to compute the particle mass necessary in order to achieve the
  * desired reference density.  We do this with [[normalize_mass]].
- * 
+ *
  * @c*/
-void normalize_mass(sim_state_t* s, sim_param_t* param)
+void normalize_mass(sim_state_t *s, sim_param_t *param)
 {
     s->mass = 1;
     hash_particles(s, param->h);
     compute_density(s, param);
     float rho0 = param->rho0;
     float rho2s = 0;
-    float rhos  = 0;
-    for (int i = 0; i < s->n; ++i) {
-        rho2s += (s->part[i].rho)*(s->part[i].rho);
-        rhos  += s->part[i].rho;
+    float rhos = 0;
+    for (int i = 0; i < s->n; ++i)
+    {
+        rho2s += (s->part[i].rho) * (s->part[i].rho);
+        rhos += s->part[i].rho;
     }
-    s->mass *= ( rho0*rhos / rho2s );
+    s->mass *= (rho0 * rhos / rho2s);
 }
 
-sim_state_t* init_particles(sim_param_t* param)
+sim_state_t *init_particles(sim_param_t *param)
 {
-    sim_state_t* s = place_particles(param, box_indicator);
+    sim_state_t *s = place_particles(param, box_indicator);
     normalize_mass(s, param);
     return s;
 }
@@ -130,49 +143,58 @@ sim_state_t* init_particles(sim_param_t* param)
  * has gone berserk.
  *@c*/
 
-void check_state(sim_state_t* s)
+void check_state(sim_state_t *s)
 {
-    for (int i = 0; i < s->n; ++i) {
+#ifdef USE_OMP
+#pragma omp parallel for
+#endif
+    for (int i = 0; i < s->n; ++i)
+    {
         float xi = s->part[i].x[0];
         float yi = s->part[i].x[1];
         float zi = s->part[i].x[2];
-        assert( xi >= 0 || xi <= 1 );
-        assert( yi >= 0 || yi <= 1 );
-        assert( zi >= 0 || zi <= 1 );
+        assert(xi >= 0 || xi <= 1);
+        assert(yi >= 0 || yi <= 1);
+        assert(zi >= 0 || zi <= 1);
     }
 }
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     sim_param_t params;
     if (get_params(argc, argv, &params) != 0)
         exit(-1);
-    sim_state_t* state = init_particles(&params);
-    FILE* fp    = std::fopen(params.fname.c_str(), "w");
+#ifdef USE_OMP
+    omp_set_num_threads(16);
+#endif
+    sim_state_t *state = init_particles(&params);
+    FILE *fp = std::fopen(params.fname.c_str(), "w");
     int nframes = params.nframes;
     int npframe = params.npframe;
-    float dt    = params.dt;
-    int n       = state->n;
+    float dt = params.dt;
+    int n = state->n;
 
     double t_start = omp_get_wtime();
-    //write_header(fp, n);
+    // write_header(fp, n);
     write_header(fp, n, nframes, params.h);
     write_frame_data(fp, n, state, NULL);
     compute_accel(state, &params);
     leapfrog_start(state, dt);
     check_state(state);
-    for (int frame = 1; frame < nframes; ++frame) {
-        for (int i = 0; i < npframe; ++i) {
+    for (int frame = 1; frame < nframes; ++frame)
+    {
+        for (int i = 0; i < npframe; ++i)
+        {
             compute_accel(state, &params);
             leapfrog_step(state, dt);
             check_state(state);
         }
-        printf("Frame: %d of %d - %2.1f%%\n",frame, nframes, 
-               100*(float)frame/nframes);
+        printf("Frame: %d of %d - %2.1f%%\n", frame, nframes,
+               100 * (float)frame / nframes);
         write_frame_data(fp, n, state, NULL);
     }
     double t_end = omp_get_wtime();
-    printf("Ran in %g seconds\n", t_end-t_start);
+    printf("Ran in %g seconds\n", t_end - t_start);
 
     fclose(fp);
     free_state(state);

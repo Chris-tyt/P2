@@ -4,6 +4,8 @@
 #include "zmorton.hpp"
 #include "binhash.hpp"
 
+#define USE_OMP
+
 /*@q
  * ====================================================================
  */
@@ -54,7 +56,7 @@ unsigned particle_neighborhood(unsigned *buckets, particle_t *p, float h)
                     continue;
 
                 // 获取邻居格子的哈希索引
-                unsigned int neighbor_hash = zm_encode(neighbor_ix& HASH_MASK, neighbor_iy& HASH_MASK, neighbor_iz& HASH_MASK);
+                unsigned int neighbor_hash = zm_encode(neighbor_ix & HASH_MASK, neighbor_iy & HASH_MASK, neighbor_iz & HASH_MASK);
 
                 // // 遍历邻居格子中的所有粒子
                 buckets[i++] = neighbor_hash;
@@ -113,13 +115,18 @@ void hash_particles(sim_state_t *s, float h)
     // 初始化哈希表和粒子链表结构
     particle_t *p = s->part;
     particle_t **hash = s->hash;
-
+#ifdef USE_OMP
+#pragma omp parallel for schedule(dynamic)
+#endif
     for (int i = 0; i < HASH_SIZE; i++)
     {
         hash[i] = nullptr;
     }
 
     // 遍历每个粒子，将其插入到哈希表中
+#ifdef USE_OMP
+#pragma omp parallel for schedule(dynamic)
+#endif
     for (int i = 0; i < s->n; ++i)
     {
         // 计算哈希索引
@@ -127,10 +134,17 @@ void hash_particles(sim_state_t *s, float h)
         // if (hash_index >= 500){
         //     std::cout<<hash_index<<"index"<<std::endl;
         // }
-
+#ifdef USE_OMP
+#pragma omp critical
         // 将粒子插入到哈希表中对应的链表中
+        {
+            p[i].next = hash[hash_index];
+            hash[hash_index] = &p[i];
+        }
+#elif
         p[i].next = hash[hash_index];
         hash[hash_index] = &p[i];
+#endif
     }
     // std::cout<<"out hash"<<std::endl;
     /* END TASK */
