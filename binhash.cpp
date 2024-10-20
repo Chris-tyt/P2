@@ -1,8 +1,11 @@
 #include <string.h>
 #include <iostream>
+#include <omp.h>
 
 #include "zmorton.hpp"
 #include "binhash.hpp"
+
+#define USE_OMP
 
 /*@q
  * ====================================================================
@@ -113,24 +116,40 @@ void hash_particles(sim_state_t *s, float h)
     // 初始化哈希表和粒子链表结构
     particle_t *p = s->part;
     particle_t **hash = s->hash;
+#ifdef USE_OMP
+// omp_set_num_threads(16);
+// #pragma omp parallel for schedule(guided)
+#endif
+    // for (int i = 0; i < HASH_SIZE; i++)
+    // {
+    //     hash[i] = nullptr;
+    // }
+    memset(hash, 0, HASH_SIZE * sizeof(particle_t *));
 
-    for (int i = 0; i < HASH_SIZE; i++)
-    {
-        hash[i] = nullptr;
-    }
 
+#ifdef USE_OMP_1
+// omp_set_num_threads(16);
+#pragma omp parallel for schedule(guided)
+#endif
     // 遍历每个粒子，将其插入到哈希表中
     for (int i = 0; i < s->n; ++i)
     {
-        // 计算哈希索引
+                // 计算哈希索引
         unsigned int hash_index = particle_bucket(p + i, h);
         // if (hash_index >= 500){
         //     std::cout<<hash_index<<"index"<<std::endl;
         // }
-
+#ifdef USE_OMP_1
+#pragma omp critical
         // 将粒子插入到哈希表中对应的链表中
+        {
+            p[i].next = hash[hash_index];
+            hash[hash_index] = &p[i];
+        }
+#else
         p[i].next = hash[hash_index];
         hash[hash_index] = &p[i];
+#endif
     }
     // std::cout<<"out hash"<<std::endl;
     /* END TASK */

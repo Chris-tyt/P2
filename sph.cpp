@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <omp.h>
+#include <iostream>
 
 #include "vec3.hpp"
 #include "io.hpp"
@@ -13,6 +14,8 @@
 #include "binhash.hpp"
 #include "interact.hpp"
 #include "leapfrog.hpp"
+
+#define USE_OMP
 
 /*@q
  * ====================================================================
@@ -62,10 +65,15 @@ sim_state_t* place_particles(sim_param_t* param,
 
     // Count mesh points that fall in indicated region.
     int count = 0;
-    for (float x = 0; x < 1; x += hh)
-        for (float y = 0; y < 1; y += hh)
-        	for (float z = 0; z < 1; z += hh)
-        		count += indicatef(x,y,z);
+    int _max = (int)1/hh;
+#ifdef USE_OMP
+#pragma omp parallel for collapse(3) reduction(+ : count)
+#endif
+    
+    for (int x = 0; x < _max; x += 1)
+        for (int y = 0; y < _max; y += 1)
+        	for (int z = 0; z < _max; z += 1)
+        		count += indicatef(x*hh,y*hh,z*hh);
 
     // Populate the particle data structure
     sim_state_t* s = alloc_state(count);
@@ -132,6 +140,9 @@ sim_state_t* init_particles(sim_param_t* param)
 
 void check_state(sim_state_t* s)
 {
+#ifdef USE_OMP
+#pragma omp parallel for
+#endif
     for (int i = 0; i < s->n; ++i) {
         float xi = s->part[i].x[0];
         float yi = s->part[i].x[1];
@@ -147,6 +158,13 @@ int main(int argc, char** argv)
     sim_param_t params;
     if (get_params(argc, argv, &params) != 0)
         exit(-1);
+#ifdef USE_OMP
+    // int max_threads = omp_get_max_threads();
+    // int num_threads = max_threads / 2;
+    // omp_set_num_threads(num_threads);
+    // std::cout<<num_threads<<std::endl;
+    omp_set_num_threads(64);
+#endif
     sim_state_t* state = init_particles(&params);
     FILE* fp    = std::fopen(params.fname.c_str(), "w");
     int nframes = params.nframes;
