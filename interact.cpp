@@ -6,7 +6,7 @@
 #include <omp.h>
 #include <vector>
 #include <iostream>
-
+#include <unordered_set>
 
 #include "vec3.hpp"
 #include "zmorton.hpp"
@@ -89,82 +89,31 @@ void compute_density(sim_state_t *s, sim_param_t *params)
 
         // Accumulate density info
 #ifdef USE_BUCKETING
-        /* BEGIN TASK */
-        // std::cout<<"in com"<<std::endl;
-// #ifdef USE_OMP
-    // omp_set_num_threads(16);
-// #pragma omp parallel for schedule(guided)
-// #endif
 
     unsigned buckets[27];
-#pragma omp parallel for private(buckets) schedule(guided, 4)
+    std::unordered_set<particle_t *> my_set;
+    omp_lock_t lock;
+    omp_init_lock(&lock); // init lock
+#pragma omp parallel for private(buckets) shared(my_set) schedule(guided, 4)
     for (int i = 0; i < n; ++i)
     {
-        // std::cout<<"in for"<< i <<std::endl;
         particle_t *pi = p + i;
         pi->rho += (315.0 / 64.0 / M_PI) * s->mass / h3;
-        // std::vector<unsigned> buckets;
-        // buckets.reserve(30);
-        // unsigned *buckets = (unsigned *)calloc(30, sizeof(unsigned));
-        // unsigned *buckets = new unsigned[30];
-        
+
+        omp_set_lock(&lock); // add lock
+        // Create a shallow copy of my_set
+        std::unordered_set<particle_t*> my_set_copy = my_set;
+        my_set.insert(pi);
+        omp_unset_lock(&lock); // remove lock
+
 #ifdef USE_2H
         unsigned num = particle_neighborhood(buckets, pi, 2 * h);
 #else
         unsigned num = particle_neighborhood(buckets, pi, h, i);
 #endif
 
-        // pi->buckets = buckets;
-        // pi->num = num;
-
-// #ifdef USE_OMP
-// #pragma omp parallel for
-// #endif
-        // for (size_t j = 0; j < num; j++)
-        // {
-        //     particle_t *p_n = hash[buckets[j]];
-        //     while (p_n)
-        //     {
-        //         update_density_single(pi, p_n, h2, C);
-        //         p_n = p_n->next;
-        //     }
-        // }
-        // delete[] buckets;
-
-        // #pragma omp parallel
-        // {
-        //     #pragma omp single
-        //     {
-        //         // float local_rho = 0.0f;
-        //         for (size_t j = 0; j < num; j++)
-        //         {
-        //             #pragma omp task firstprivate(j) shared(buckets, hash, pi)
-        //             {
-        //                 particle_t *p_n = hash[buckets[j]];
-        //                 while (p_n)
-        //                 {
-        //                     if (pi != p_n)
-        //                     {
-        //                         float r2 = vec3_dist2(pi->x, p_n->x);
-        //                         float z = h2 - r2;
-        //                         if (z > 0)
-        //                         {
-        //                             float rho_ij = C * z * z * z;
-        //                             #pragma omp atomic
-        //                             pi->rho += rho_ij;
-        //                         }
-        //                     }
-        //                     p_n = p_n->next;
-        //                 }
-        //             }
-        //         }
-        //         // pi->rho += local_rho;
-        //     }
-        // }
-
-
-        float local_rho = 0.0f;
-        #pragma omp parallel for reduction(+:local_rho)
+        // float local_rho = 0.0f;
+        // #pragma omp parallel for reduction(+:local_rho)
         for (size_t j = 0; j < num; j++)
         {
             // particle_t *p_n = hash[pi->buckets[j]];
@@ -172,22 +121,28 @@ void compute_density(sim_state_t *s, sim_param_t *params)
             particle_t *p_n = hash[particle_neighbour_map[i][j]];
             while (p_n)
             {
-                if (pi != p_n)
+                bool to_calculate = my_set_copy.find(p_n) != my_set_copy.end();
+                // bool to_calculate = true;
+                if (pi != p_n && to_calculate)
                 {
                     float r2 = vec3_dist2(pi->x, p_n->x);
                     float z = h2 - r2;
                     if (z > 0)
                     {
                         float rho_ij = C * z * z * z;
-                        local_rho += rho_ij;
+                        if (to_calculate){
+                            pi->rho += rho_ij;
+                            p_n->rho += rho_ij;
+                        }
                     }
                 }
                 p_n = p_n->next;
             }
         }
-        pi->rho += local_rho;
+        // pi->rho += local_rho;
     }
-    /* END TASK */
+    omp_destroy_lock(&lock); // destory lock
+/* END TASK */
 #else
     for (int i = 0; i < n; ++i)
     {
@@ -202,10 +157,9 @@ void compute_density(sim_state_t *s, sim_param_t *params)
 #endif
 }
 
-
 /*@T
  * \subsection{Computing forces}
- * 
+ *
  * The acceleration is computed by the rule
  * \[
  *   \bfa_i = \frac{1}{\rho_i} \sum_{j \in N_i}
@@ -338,7 +292,7 @@ void compute_accel(sim_state_t *state, sim_param_t *params)
 #else
         // unsigned num = particle_neighborhood(buckets, pi, h);
         // int num = pi->num;
-        
+
         // find_neighbor_buckets(pi, h, buckets);
 #endif
         for (size_t j = 0; j < pi->num; j++)
@@ -367,4 +321,3 @@ void compute_accel(sim_state_t *state, sim_param_t *params)
     }
 #endif
 }
-
