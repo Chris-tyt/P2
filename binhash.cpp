@@ -7,6 +7,9 @@
 
 #define USE_OMP
 
+
+extern int particle_neighbour_map[3380][27];
+
 /*@q
  * ====================================================================
  */
@@ -33,7 +36,7 @@ unsigned particle_bucket(particle_t *p, float h)
     return zm_encode(ix & HASH_MASK, iy & HASH_MASK, iz & HASH_MASK);
 }
 
-unsigned particle_neighborhood(unsigned *buckets, particle_t *p, float h)
+unsigned particle_neighborhood(unsigned *buckets, particle_t *p, float h, int index)
 {
     /* BEGIN TASK */
     int ix = p->x[0] / h;
@@ -60,10 +63,13 @@ unsigned particle_neighborhood(unsigned *buckets, particle_t *p, float h)
                 unsigned int neighbor_hash = zm_encode(neighbor_ix& HASH_MASK, neighbor_iy& HASH_MASK, neighbor_iz& HASH_MASK);
 
                 // // 遍历邻居格子中的所有粒子
-                buckets[i++] = neighbor_hash;
+                // buckets[i++] = neighbor_hash;
+                // p->buckets[i++] = neighbor_hash;
+                particle_neighbour_map[index][i++] = neighbor_hash;
             }
         }
     }
+    p->num = i;
     return i;
     /* END TASK */
 }

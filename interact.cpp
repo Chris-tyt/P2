@@ -21,6 +21,8 @@
 // #define USE_2H
 #define USE_OMP
 
+extern int particle_neighbour_map[3380][27];
+
 /*@T
  * \subsection{Density computations}
  *
@@ -109,8 +111,11 @@ void compute_density(sim_state_t *s, sim_param_t *params)
 #ifdef USE_2H
         unsigned num = particle_neighborhood(buckets, pi, 2 * h);
 #else
-        unsigned num = particle_neighborhood(buckets, pi, h);
+        unsigned num = particle_neighborhood(buckets, pi, h, i);
 #endif
+
+        // pi->buckets = buckets;
+        // pi->num = num;
 
 // #ifdef USE_OMP
 // #pragma omp parallel for
@@ -162,7 +167,9 @@ void compute_density(sim_state_t *s, sim_param_t *params)
         #pragma omp parallel for reduction(+:local_rho)
         for (size_t j = 0; j < num; j++)
         {
-            particle_t *p_n = hash[buckets[j]];
+            // particle_t *p_n = hash[pi->buckets[j]];
+            // particle_t *p_n = hash[buckets[j]];
+            particle_t *p_n = hash[particle_neighbour_map[i][j]];
             while (p_n)
             {
                 if (pi != p_n)
@@ -329,12 +336,16 @@ void compute_accel(sim_state_t *state, sim_param_t *params)
         unsigned num = particle_neighborhood(buckets, pi, 2 * h);
         // find_neighbor_buckets(pi, 2 * h, buckets);
 #else
-        unsigned num = particle_neighborhood(buckets, pi, h);
+        // unsigned num = particle_neighborhood(buckets, pi, h);
+        // int num = pi->num;
+        
         // find_neighbor_buckets(pi, h, buckets);
 #endif
-        for (size_t j = 0; j < num; j++)
+        for (size_t j = 0; j < pi->num; j++)
         {
-            particle_t *p_n = hash[buckets[j]];
+            // particle_t *p_n = hash[pi->buckets[j]];
+            // particle_t *p_n = hash[buckets[j]];
+            particle_t *p_n = hash[particle_neighbour_map[i][j]];
             while (p_n)
             {
                 update_forces_single(pi, p_n, h2, rho0, C0, Cp, Cv);
