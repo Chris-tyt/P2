@@ -187,7 +187,7 @@ int main(int argc, char** argv)
     // int num_threads = max_threads / 2;
     // omp_set_num_threads(num_threads);
     // std::cout<<num_threads<<std::endl;
-    omp_set_num_threads(64);
+    omp_set_num_threads(32);
 #endif
     sim_state_t* state = init_particles(&params);
     FILE* fp    = std::fopen(params.fname.c_str(), "w");
