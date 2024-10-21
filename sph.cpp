@@ -19,6 +19,26 @@
 
 int particle_neighbour_map[3380][27];
 
+omp_lock_t locks[3380][3380];
+
+bool particle_updated[3380][3380] = {false};
+
+void initialize_locks() {
+    for (int i = 0; i < 3380; i++) {
+        for (int j = 0; j < 3380; j++) {
+            omp_init_lock(&locks[i][j]);  // 初始化每个锁
+        }
+    }
+}
+
+void destroy_locks() {
+    for (int i = 0; i < 3380; i++) {
+        for (int j = 0; j < 3380; j++) {
+            omp_destroy_lock(&locks[i][j]);  // 销毁每个锁
+        }
+    }
+}
+
 /*@q
  * ====================================================================
  */
@@ -86,6 +106,7 @@ sim_state_t* place_particles(sim_param_t* param,
                 if (indicatef(x,y,z)) {
                     vec3_set(s->part[p].x, x, y, z);
                     vec3_set(s->part[p].v, 0, 0, 0);
+                    s->part[p].index = p;
                     ++p;
                 }
             }
@@ -157,6 +178,7 @@ void check_state(sim_state_t* s)
 
 int main(int argc, char** argv)
 {
+    initialize_locks();
     sim_param_t params;
     if (get_params(argc, argv, &params) != 0)
         exit(-1);
@@ -193,6 +215,7 @@ int main(int argc, char** argv)
     }
     double t_end = omp_get_wtime();
     printf("Ran in %g seconds\n", t_end-t_start);
+    destroy_locks();
 
     fclose(fp);
     free_state(state);

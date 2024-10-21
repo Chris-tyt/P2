@@ -21,6 +21,7 @@ typedef struct particle_t {
     struct particle_t* next;  /* List link for spatial hashing */
     // unsigned int buckets[27];
     int num;
+    int index;
 } particle_t;
 
 typedef struct sim_state_t {
