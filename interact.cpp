@@ -104,10 +104,6 @@ void compute_density(sim_state_t *s, sim_param_t *params)
         // std::cout<<"in for"<< i <<std::endl;
         particle_t *pi = p + i;
         pi->rho += (315.0 / 64.0 / M_PI) * s->mass / h3;
-        // std::vector<unsigned> buckets;
-        // buckets.reserve(30);
-        // unsigned *buckets = (unsigned *)calloc(30, sizeof(unsigned));
-        // unsigned *buckets = new unsigned[30];
 
 #ifdef USE_2H
         unsigned num = particle_neighborhood(buckets, pi, 2 * h);
@@ -119,14 +115,9 @@ void compute_density(sim_state_t *s, sim_param_t *params)
         // #pragma omp parallel for reduction(+:local_rho)
         for (size_t j = 0; j < num; j++)
         {
-            // particle_t *p_n = hash[pi->buckets[j]];
-            // particle_t *p_n = hash[buckets[j]];
             particle_t *p_n = hash[particle_neighbour_map[i][j]];
             while (p_n)
             {
-
-                // bool to_calculate = particle_updated[i][p_n->index];
-                // omp_set_lock(i > p_n->index?&locks[p_n->index][i]:&locks[i][p_n->index]);
                 if (particle_updated[i][p_n->index] == false)
                 {
                     if (pi != p_n)
@@ -149,12 +140,9 @@ void compute_density(sim_state_t *s, sim_param_t *params)
                         }
                     }
                 }
-                // omp_unset_lock(i > p_n->index?&locks[p_n->index][i]:&locks[i][p_n->index]);
-
                 p_n = p_n->next;
             }
         }
-        // pi->rho += local_rho;
     }
     /* END TASK */
 #else
@@ -269,19 +257,21 @@ void compute_accel(sim_state_t *state, sim_param_t *params)
     hash_particles(state, h);
 #endif
 
-    // Compute density and color
-    #pragma omp parallel for
-    for (int i = 0; i < 3380; ++i) {
-        memset(particle_updated[i], 0, sizeof(bool)*3380);
+// Compute density and color
+#pragma omp parallel for
+    for (int i = 0; i < 3380; ++i)
+    {
+        memset(particle_updated[i], 0, sizeof(bool) * 3380);
     }
-    
+
     compute_density(state, params);
-    #pragma omp parallel for
-        for (int i = 0; i < 3380; ++i) {
-        memset(particle_updated[i], 0, sizeof(bool)*3380);
-    }
-    // memset(particle_updated, 0, sizeof(particle_updated));
-    // Start with gravity and surface forces
+// #pragma omp parallel for
+//     for (int i = 0; i < 3380; ++i)
+//     {
+//         memset(particle_updated[i], 0, sizeof(bool) * 3380);
+//     }
+// memset(particle_updated, 0, sizeof(particle_updated));
+// Start with gravity and surface forces
 #ifdef USE_OMP
 #pragma omp parallel for
 #endif
@@ -303,67 +293,16 @@ void compute_accel(sim_state_t *state, sim_param_t *params)
     for (int i = 0; i < n; ++i)
     {
         particle_t *pi = p + i;
-        // std::vector<unsigned> buckets;
-        // buckets.reserve(30);
-        // unsigned *buckets = (unsigned *)calloc(30, sizeof(unsigned));
-        // unsigned *buckets = new unsigned[30];
-        // unsigned buckets[27];
 
-#ifdef USE_2H
-        unsigned num = particle_neighborhood(buckets, pi, 2 * h);
-        // find_neighbor_buckets(pi, 2 * h, buckets);
-#else
-        // unsigned num = particle_neighborhood(buckets, pi, h);
-        // int num = pi->num;
-
-        // find_neighbor_buckets(pi, h, buckets);
-#endif
         for (size_t j = 0; j < pi->num; j++)
         {
-            // particle_t *p_n = hash[pi->buckets[j]];
-            // particle_t *p_n = hash[buckets[j]];
+
             particle_t *p_n = hash[particle_neighbour_map[i][j]];
             while (p_n)
             {
-                if (particle_updated[i][p_n->index] == false)
-                {
-                    // update_forces_single(pi, p_n, h2, rho0, C0, Cp, Cv);
-                    if (pi != p_n)
-                    {
 
-                        float dx[3];
-                        vec3_diff(dx, pi->x, p_n->x);
-                        float r2 = vec3_len2(dx);
-                        if (r2 < h2)
-                        {
-                            const float rhoi = p_n->rho;
-                            const float rhoj = p_n->rho;
-                            float q = sqrt(r2 / h2);
-                            float u = 1 - q;
-                            float w0 = C0 * u / rhoi / rhoj;
-                            float wp = w0 * Cp * (rhoi + rhoj - 2 * rho0) * u / q;
-                            float wv = w0 * Cv;
-                            float dv[3];
-                            vec3_diff(dv, pi->v, p_n->v);
+                update_forces_single(pi, p_n, h2, rho0, C0, Cp, Cv);
 
-                            // Equal and opposite pressure forces
-                            int li = (i > p_n->index) ? p_n->index : i;
-                            int lj = (i > p_n->index) ? i : p_n->index;
-                            omp_set_lock(&locks[li][lj]);
-                            if (particle_updated[i][p_n->index] == false)
-                            {
-                                vec3_saxpy(pi->a, wp, dx);
-                                vec3_saxpy(p_n->a, -wp, dx);
-
-                                // Equal and opposite viscosity forces
-                                vec3_saxpy(pi->a, wv, dv);
-                                vec3_saxpy(p_n->a, -wv, dv);
-                                particle_updated[p_n->index][i] = true;
-                            }
-                            omp_unset_lock(&locks[li][lj]);
-                        }
-                    }
-                }
                 p_n = p_n->next;
             }
         }
