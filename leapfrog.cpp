@@ -4,7 +4,7 @@
 #include "vec3.hpp"
 #include "state.hpp"
 
-#define USE_OMP
+// #define USE_OMP
 
 static void reflect_bc(sim_state_t* s);
 

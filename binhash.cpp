@@ -1,11 +1,10 @@
 #include <string.h>
 #include <iostream>
-#include <omp.h>
+// #include <omp.h>
 
 #include "zmorton.hpp"
 #include "binhash.hpp"
 
-#define USE_OMP
 
 
 extern int particle_neighbour_map[3380][27];
