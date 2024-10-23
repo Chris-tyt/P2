@@ -95,6 +95,7 @@ void compute_density(sim_state_t *s, sim_param_t *params)
 // #endif
 
     unsigned buckets[27];
+    omp_set_nested(1);
 #pragma omp parallel for private(buckets) schedule(guided, 4)
     for (int i = 0; i < n; ++i)
     {
@@ -112,54 +113,8 @@ void compute_density(sim_state_t *s, sim_param_t *params)
         unsigned num = particle_neighborhood(buckets, pi, h);
 #endif
 
-// #ifdef USE_OMP
-// #pragma omp parallel for
-// #endif
-        // for (size_t j = 0; j < num; j++)
-        // {
-        //     particle_t *p_n = hash[buckets[j]];
-        //     while (p_n)
-        //     {
-        //         update_density_single(pi, p_n, h2, C);
-        //         p_n = p_n->next;
-        //     }
-        // }
-        // delete[] buckets;
-
-        // #pragma omp parallel
-        // {
-        //     #pragma omp single
-        //     {
-        //         // float local_rho = 0.0f;
-        //         for (size_t j = 0; j < num; j++)
-        //         {
-        //             #pragma omp task firstprivate(j) shared(buckets, hash, pi)
-        //             {
-        //                 particle_t *p_n = hash[buckets[j]];
-        //                 while (p_n)
-        //                 {
-        //                     if (pi != p_n)
-        //                     {
-        //                         float r2 = vec3_dist2(pi->x, p_n->x);
-        //                         float z = h2 - r2;
-        //                         if (z > 0)
-        //                         {
-        //                             float rho_ij = C * z * z * z;
-        //                             #pragma omp atomic
-        //                             pi->rho += rho_ij;
-        //                         }
-        //                     }
-        //                     p_n = p_n->next;
-        //                 }
-        //             }
-        //         }
-        //         // pi->rho += local_rho;
-        //     }
-        // }
-
-
         float local_rho = 0.0f;
-        #pragma omp parallel for reduction(+:local_rho)
+        #pragma omp parallel for reduction(+:local_rho) num_threads(2)
         for (size_t j = 0; j < num; j++)
         {
             particle_t *p_n = hash[buckets[j]];
