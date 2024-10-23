@@ -7,7 +7,6 @@
 #include <vector>
 #include <iostream>
 
-
 #include "vec3.hpp"
 #include "zmorton.hpp"
 
@@ -89,15 +88,17 @@ void compute_density(sim_state_t *s, sim_param_t *params)
 
         // Accumulate density info
 #ifdef USE_BUCKETING
-        /* BEGIN TASK */
-        // std::cout<<"in com"<<std::endl;
-// #ifdef USE_OMP
+    /* BEGIN TASK */
+    // std::cout<<"in com"<<std::endl;
+    // #ifdef USE_OMP
     // omp_set_num_threads(16);
-// #pragma omp parallel for schedule(guided)
-// #endif
+    // #pragma omp parallel for schedule(guided)
+    // #endif
 
     unsigned buckets[27];
+#ifdef USE_OMP
 #pragma omp parallel for private(buckets) schedule(guided, 4)
+#endif
     for (int i = 0; i < n; ++i)
     {
         // std::cout<<"in for"<< i <<std::endl;
@@ -105,9 +106,7 @@ void compute_density(sim_state_t *s, sim_param_t *params)
         pi->rho += (315.0 / 64.0 / M_PI) * s->mass / h3;
         // std::vector<unsigned> buckets;
         // buckets.reserve(30);
-        // unsigned *buckets = (unsigned *)calloc(30, sizeof(unsigned));
-        // unsigned *buckets = new unsigned[30];
-        
+
 #ifdef USE_2H
         unsigned num = particle_neighborhood(buckets, pi, 2 * h);
 #else
@@ -117,9 +116,9 @@ void compute_density(sim_state_t *s, sim_param_t *params)
         // pi->buckets = buckets;
         // pi->num = num;
 
-// #ifdef USE_OMP
-// #pragma omp parallel for
-// #endif
+        // #ifdef USE_OMP
+        // #pragma omp parallel for
+        // #endif
         // for (size_t j = 0; j < num; j++)
         // {
         //     particle_t *p_n = hash[buckets[j]];
@@ -162,9 +161,10 @@ void compute_density(sim_state_t *s, sim_param_t *params)
         //     }
         // }
 
-
         float local_rho = 0.0f;
-        #pragma omp parallel for reduction(+:local_rho)
+#ifdef USE_OMP
+#pragma omp parallel for reduction(+ : local_rho)
+#endif
         for (size_t j = 0; j < num; j++)
         {
             // particle_t *p_n = hash[pi->buckets[j]];
@@ -202,10 +202,9 @@ void compute_density(sim_state_t *s, sim_param_t *params)
 #endif
 }
 
-
 /*@T
  * \subsection{Computing forces}
- * 
+ *
  * The acceleration is computed by the rule
  * \[
  *   \bfa_i = \frac{1}{\rho_i} \sum_{j \in N_i}
@@ -326,22 +325,15 @@ void compute_accel(sim_state_t *state, sim_param_t *params)
     for (int i = 0; i < n; ++i)
     {
         particle_t *pi = p + i;
-        // std::vector<unsigned> buckets;
-        // buckets.reserve(30);
-        // unsigned *buckets = (unsigned *)calloc(30, sizeof(unsigned));
-        // unsigned *buckets = new unsigned[30];
-        unsigned buckets[27];
-
-#ifdef USE_2H
-        unsigned num = particle_neighborhood(buckets, pi, 2 * h);
-        // find_neighbor_buckets(pi, 2 * h, buckets);
-#else
-        // unsigned num = particle_neighborhood(buckets, pi, h);
-        // int num = pi->num;
-        
-        // find_neighbor_buckets(pi, h, buckets);
-#endif
-        for (size_t j = 0; j < pi->num; j++)
+// #ifdef USE_2H
+//         unsigned num = particle_neighborhood(buckets, pi, 2 * h);
+//         // find_neighbor_buckets(pi, 2 * h, buckets);
+// #else
+//         // unsigned num = particle_neighborhood(buckets, pi, h);
+//         int num = pi->num;
+//         // find_neighbor_buckets(pi, h, buckets);
+// #endif
+        for (int j = 0; j < pi->num; j++)
         {
             // particle_t *p_n = hash[pi->buckets[j]];
             // particle_t *p_n = hash[buckets[j]];
@@ -367,4 +359,3 @@ void compute_accel(sim_state_t *state, sim_param_t *params)
     }
 #endif
 }
-
